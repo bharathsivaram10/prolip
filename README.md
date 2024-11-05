@@ -26,7 +26,7 @@ from transformers import CLIPProcessor
 from prolip.tokenizer import HFTokenizer
 
 processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch16")
-model = ProLIPHF.from_pretrained("SanghyukChun/ProLIP-ViT-B-16-DC-1B-12_8M")
+model = ProLIPHF.from_pretrained("SanghyukChun/ProLIP-ViT-B-16-DC-1B-12_8B")
 tokenizer = HFTokenizer("timm/ViT-B-16-SigLIP", context_length=64, clean="canonicalize")
 
 # image: PIL.Image / texts: list of strings
