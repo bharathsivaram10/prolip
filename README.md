@@ -1,4 +1,4 @@
-# Probabilistic Language-Image Pre-Training (ProLIP)
+# Probabilistic Language-Image Pre-Training (ProLIP) ICLR 2025
 
 [![arXiv](https://img.shields.io/badge/arXiv-2410.18857-b31b1b.svg)](https://arxiv.org/abs/2410.18857)
 [![demo](https://img.shields.io/badge/HuggingFace-Hub-blue.svg)](https://huggingface.co/collections/SanghyukChun/prolip-6712595dfc87fd8597350291)
@@ -38,11 +38,11 @@ outputs = model(image=inputs["pixel_values"], text=texts)
 ## How to cite
 
 ```
-@article{chun2024prolip,
+@inproceedings{chun2025prolip,
     title={Probabilistic Language-Image Pre-Training},
     author={Sanghyuk Chun and Wonjae Kim and Song Park and Sangdoo Yun},
-    year={2024},
-    journal={arXiv preprint arXiv:2410.18857},
+    year={2025},
+    booktitle={International Conference on Learning Representations (ICLR)},
 }
 ```
 
