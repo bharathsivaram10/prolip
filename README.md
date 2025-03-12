@@ -1,9 +1,10 @@
 # Probabilistic Language-Image Pre-Training (ProLIP) ICLR 2025
 
-[![arXiv](https://img.shields.io/badge/arXiv-2410.18857-b31b1b.svg)](https://arxiv.org/abs/2410.18857)
-[![demo](https://img.shields.io/badge/HuggingFace-Hub-blue.svg)](https://huggingface.co/collections/SanghyukChun/prolip-6712595dfc87fd8597350291)
+[![arXiv](https://img.shields.io/badge/ProLIP_arXiv-2410.18857-b31b1b.svg)](https://arxiv.org/abs/2410.18857)
+[![arXiv_2](https://img.shields.io/badge/LongProLIP_arXiv-2503.08048-b31b1b.svg)](https://arxiv.org/abs/2503.08048)
+[![model_hub](https://img.shields.io/badge/HuggingFace-Hub-blue.svg)](https://huggingface.co/collections/SanghyukChun/prolip-6712595dfc87fd8597350291)
 
-Official Python implementation of ProLIP | [Paper](https://arxiv.org/abs/2410.18857) | [Huggingface models](https://huggingface.co/collections/SanghyukChun/prolip-6712595dfc87fd8597350291)
+Official Python implementation of ProLIP | [Paper](https://arxiv.org/abs/2410.18857) | [LongProLIP Paper](https://arxiv.org/abs/2503.08048) | [Huggingface models](https://huggingface.co/collections/SanghyukChun/prolip-6712595dfc87fd8597350291)
 
 [Sanghyuk Chun](https://sanghyukchun.github.io/home/), [Wonjae Kim](https://wonjae.kim/), [Song Park](https://8uos.github.io/), [Sangdoo Yun](https://sangdooyun.github.io/)
 
@@ -14,6 +15,7 @@ This codebase is built upon the following repositories
 
 ## Updates
 
+- 12th Mar, 2025: Training code and LongProLIP weights are released!
 - 25th Oct, 2024: Code is released! The full training code will be released soon.
 
 ## Quick start
@@ -40,9 +42,16 @@ outputs = model(image=inputs["pixel_values"], text=texts)
 ```
 @inproceedings{chun2025prolip,
     title={Probabilistic Language-Image Pre-Training},
-    author={Sanghyuk Chun and Wonjae Kim and Song Park and Sangdoo Yun},
+    author={Chun, Sanghyuk and Kim, Wonjae and Park, Song and Yun, Sangdoo},
     year={2025},
     booktitle={International Conference on Learning Representations (ICLR)},
+}
+
+@article{chun2025longprolip,
+  title={LongProLIP: A Probabilistic Vision-Language Model with Long Context Text},
+  author={Chun, Sanghyuk and Yun, Sangdoo},
+  journal={arXiv preprint arXiv:2503.08048},
+  year={2025}
 }
 ```
 
