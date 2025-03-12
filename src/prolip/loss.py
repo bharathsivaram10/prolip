@@ -207,7 +207,9 @@ class ProLIPLoss(nn.Module):
         loss_dict = {}
 
         image_mu, image_sigma = image_features["mean"], image_features["std"]
-        text_mu, text_sigma = text_features["mean"], text_features["std"]
+        if text_features is not None:
+            # NOTE For world_size > 1 (See L290-292 for more details)
+            text_mu, text_sigma = text_features["mean"], text_features["std"]
 
         labels = self.get_ground_truth(
             image_mu.device,
@@ -217,7 +219,7 @@ class ProLIPLoss(nn.Module):
         )
 
         # Deterministic loss (for ablation study only)
-        # We use SigLIP loss because ProLIP is based on pairwise contrastive loss by PCME++
+        # NOTE We use SigLIP loss for deterministic loss because ProLIP is based on pairwise contrastive loss by PCME++
         if self.siglip_lambda > 0:
             logits = self.get_logits(image_mu, text_mu, negative_scale, shift)
             siglip_loss = self.siglip_lambda * -F.logsigmoid(labels * logits).sum() / image_mu.shape[0]
@@ -230,7 +232,7 @@ class ProLIPLoss(nn.Module):
         loss += pcmepp_loss
         loss_dict["ppcl"] = pcmepp_loss
 
-        # XXX for logging
+        # NOTE uncomment this if you need to log them
         # log_dict = {}
         # log_dict["LOG_mu_pdist"] = mu_pdist.mean()
         # log_dict["LOG_sigma_pdist"] = sigma_pdist.mean()
@@ -285,6 +287,9 @@ class ProLIPLoss(nn.Module):
             # exchange text features w/ neighbour world_size - 1 times
             right_rank = (self.rank + 1) % self.world_size
             left_rank = (self.rank - 1 + self.world_size) % self.world_size
+            # NOTE: Here, instead of using `text_features` directly,
+            # `text_features["mean"]` and `text_features["std"]` are directly passed into `_loss`
+            # by using `text_mu` and `text_sigma` arguments.
             if self.bidir:
                 text_features_to_right = text_features_to_left = text_features['mean']
                 text_sigmas_to_right = text_sigmas_to_left = text_features['std']

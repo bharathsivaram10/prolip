@@ -298,9 +298,10 @@ def convert_weights_to_lp(model: nn.Module, dtype=torch.float16):
 
         if isinstance(layer, TextTransformer):
             # convert text nn.Parameter projections
-            attr = getattr(layer, "text_projection", None)
-            if attr is not None:
-                attr.data = attr.data.to(dtype)
+            for attr_name in ("text_projection", "text_uncertainty_projection", "cls_emb", "unc_emb"):
+                attr = getattr(layer, attr_name, None)
+                if attr is not None and isinstance(attr, nn.Parameter):
+                    attr.data = attr.data.to(dtype)
 
         if isinstance(layer, VisionTransformer):
             # convert vision nn.Parameter projections
@@ -348,3 +349,150 @@ def get_model_tokenize_cfg(model):
     if vocab_size is not None:
         cfg['vocab_size'] = vocab_size
     return cfg
+
+
+# ===================================================================== #
+#                      For LongProLIP                                   #
+# ===================================================================== #
+def resize_prolip_pos_embed(state_dict, model, interpolation: str = 'bicubic', antialias: bool = True):
+    # Rescale the grid of position embeddings when loading from state_dict
+    old_pos_embed = state_dict.get('visual.positional_embedding', None)
+    if old_pos_embed is None or not hasattr(model.visual, 'grid_size'):
+        return
+    if len(old_pos_embed.size()) == 3:
+        old_pos_embed = old_pos_embed[0]
+        state_dict['visual.positional_embedding'] = old_pos_embed
+    grid_size = to_2tuple(model.visual.grid_size)
+    # extra_tokens = 1  # FIXME detect different token configs (ie no class token, or more)
+    extra_tokens = 2  # FIXME detect different token configs (ie no class token, or more)
+    logging.info(f'Using {extra_tokens=} for `create_model` method. Please manually fix this if it raises an error (See src/open_clip/model.py:L594)')
+    new_seq_len = grid_size[0] * grid_size[1] + extra_tokens
+    if new_seq_len == old_pos_embed.shape[0]:
+        return
+
+    pos_emb_tok, pos_emb_img = model.visual.positional_embedding[:extra_tokens].to(old_pos_embed.device), old_pos_embed
+    pos_dim = pos_emb_img.size()[0]
+
+    if len(old_pos_embed) == 197:
+        # NOTE patch size 16 with CLS token
+        pos_emb_tok[0] = old_pos_embed[0]
+        pos_emb_img = old_pos_embed[1:]
+    elif len(old_pos_embed) == 257:
+        # NOTE patch size 14 with CLS token
+        pos_emb_tok[0] = old_pos_embed[0]
+        pos_emb_img = old_pos_embed[1:]
+    else:
+        # NOTE different det pre-trained backbone => change this..
+        pos_emb_img = old_pos_embed[2:]
+    old_grid_size = to_2tuple(int(math.sqrt(len(pos_emb_img))))
+
+    if grid_size[0] != old_grid_size[0] or grid_size[1] != old_grid_size[1]:
+        logging.info('Resizing position embedding grid-size from %s to %s', old_grid_size, grid_size)
+        pos_emb_img = pos_emb_img.reshape(1, old_grid_size[0], old_grid_size[1], -1).permute(0, 3, 1, 2)
+        pos_emb_img = F.interpolate(
+            pos_emb_img,
+            size=grid_size,
+            mode=interpolation,
+            antialias=antialias,
+            align_corners=False,
+        )
+        pos_emb_img = pos_emb_img.permute(0, 2, 3, 1).reshape(1, grid_size[0] * grid_size[1], -1)[0]
+    else:
+        logging.info('same grid size (%s to %s) skip interpolation', old_grid_size, grid_size)
+    if pos_emb_tok is not None:
+        new_pos_embed = torch.cat([pos_emb_tok, pos_emb_img], dim=0)
+    else:
+        new_pos_embed = pos_emb_img
+    state_dict['visual.positional_embedding'] = new_pos_embed
+
+
+def resize_prolip_text_pos_embed(state_dict, model, interpolation: str = 'linear', antialias: bool = False, n_cls: int = 2):
+    key = 'positional_embedding'
+    old_pos_embed = state_dict.get(key, None)
+    if old_pos_embed is None:
+        key = 'text.positional_embedding'
+        old_pos_embed = state_dict.get(key, None)
+    if old_pos_embed is None:
+        return
+    # FIXME add support for text cls_token
+    model_pos_embed = getattr(model, 'positional_embedding', None)
+    if model_pos_embed is None:
+        model_pos_embed = getattr(model.text, 'positional_embedding', None)
+
+    old_num_pos = old_pos_embed.shape[0]
+    old_width = old_pos_embed.shape[1]
+    num_pos = model_pos_embed.shape[0]
+    width = model_pos_embed.shape[1]
+    assert old_width == width, 'text pos_embed width changed!'
+    if old_num_pos == num_pos:
+        return
+
+    if num_pos > 127:
+        logging.info('[LongCLIP-ish] Resizing text position embedding num_pos from %s to %s', old_num_pos, num_pos)
+        n_fixed = 20
+        if n_cls:
+            logging.info(f'[LongCLIP-ish] Keep first {n_fixed} tokens and last {n_cls} tokens (CLS and UNC)')
+            # shape: [1, 768, 66] (pos_len + # cls)
+            old_pos_embed = old_pos_embed.reshape(1, old_num_pos, old_width).permute(0, 2, 1)
+            keep_pos_embed = old_pos_embed[:, :, :n_fixed]  # First 20 tokens
+            cls_embed = old_pos_embed[:, :, -n_cls:]  # Last 2 tokens
+            old_pos_embed = old_pos_embed[:, :, n_fixed:-n_cls]  # Remaining dimensions
+
+            old_pos_embed = F.interpolate(
+                old_pos_embed,
+                size=num_pos - n_fixed - n_cls,
+                mode=interpolation,
+                antialias=antialias,
+                align_corners=False,
+            )
+            new_pos_embed = torch.cat([keep_pos_embed, old_pos_embed, cls_embed], dim=2)
+            new_pos_embed = new_pos_embed.permute(0, 2, 1)[0]
+        else:
+            logging.info(f'[LongCLIP-ish] Keep first {n_fixed} tokens')
+            # shape: [1, 768, 64] (pos_len)
+            old_pos_embed = old_pos_embed.reshape(1, old_num_pos, old_width).permute(0, 2, 1)
+            keep_pos_embed = old_pos_embed[:, :, :n_fixed]  # First 20 tokens
+            old_pos_embed = old_pos_embed[:, :, n_fixed:]  # Remaining dimensions
+
+            old_pos_embed = F.interpolate(
+                old_pos_embed,
+                size=num_pos - n_fixed,
+                mode=interpolation,
+                antialias=antialias,
+                align_corners=False,
+            )
+            new_pos_embed = torch.cat([keep_pos_embed, old_pos_embed], dim=2)
+            new_pos_embed = new_pos_embed.permute(0, 2, 1)[0]
+    else:
+        logging.info('Resizing text position embedding num_pos from %s to %s', old_num_pos, num_pos)
+        old_pos_embed = old_pos_embed.reshape(1, old_num_pos, old_width).permute(0, 2, 1)
+        old_pos_embed = F.interpolate(
+            old_pos_embed,
+            size=num_pos,
+            mode=interpolation,
+            antialias=antialias,
+            align_corners=False,
+        )
+        old_pos_embed = old_pos_embed.permute(0, 2, 1)[0]
+        new_pos_embed = old_pos_embed
+
+    state_dict[key] = new_pos_embed
+
+
+def resize_prolip_tok_embed(state_dict, model):
+    logging.info("Resizing token embeddings")
+    old_tok_embed = state_dict.get('text.token_embedding.weight', None)
+    try:
+        model_tok_embed = model.text.token_embedding.weight
+    except AttributeError:
+        model_tok_embed = None
+    # model_tok_embed = getattr(model.text, 'token_embedding.weight', None)
+    if old_tok_embed is None or model_tok_embed is None:
+        return
+    if old_tok_embed.shape[1] != model_tok_embed.shape[1]:
+        raise NotImplementedError
+    if old_tok_embed.shape[0] > model_tok_embed.shape[0]:
+        raise NotImplementedError
+    new_tok_embed = model_tok_embed.clone().to(old_tok_embed.device)
+    new_tok_embed[:old_tok_embed.shape[0], :] = old_tok_embed
+    state_dict['text.token_embedding.weight'] = new_tok_embed

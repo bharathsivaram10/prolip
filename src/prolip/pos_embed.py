@@ -1,3 +1,6 @@
+"""
+Original code: https://github.com/mlfoundations/open_clip/blob/v2.24.0/src/open_clip/pos_embed.py
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 

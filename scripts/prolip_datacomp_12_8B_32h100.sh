@@ -1,0 +1,32 @@
+torchrun --nproc_per_node=8 \
+    --nnodes=4 \
+    --node_rank=$RANK \
+    --master_addr=$MASTER_ADDR \
+    --master_port=$MASTER_PORT \
+    -m prolip_train.main \
+    --train-data "pipe:aws s3 cp $DATACOMP_PATH/shards/{00000000..00125136}.tar -" \
+    --train-num-samples 10000000 \
+    --aug-cfg scale='(0.8, 1.0)' color_jitter='(0.32, 0.32, 0.32, 0.08)' color_jitter_prob=0.8 gray_scale_prob=0.2 \
+    --beta1 0.9 \
+    --beta2 0.95 \
+    --epochs 1280 \
+    --batch-size 512 \
+    --zeroshot-frequency 4 \
+    --dataset-resampled \
+    --dataset-type webdataset \
+    --model ViT-B-16-ProLIP \
+    --precision amp_bf16 \
+    --workers 8 \
+    --imagenet-val $IMAGENET_PATH \
+    --coco-test $COCO_PATH \
+    --prolip-logs $LOG_PATH \
+    --accum-freq 1 \
+    --ppcl-lambda 1.0 \
+    --vib-beta 0.0001 \
+    --inclusion-alpha 0.0000001 \
+    --inclusion-alpha-occ 0.001 \
+    --drop-ratio 0.125 \
+    --drop-prob 0.75 \
+    --delete-previous-checkpoint \
+    --save-best-unc \
+    --prolip
