@@ -6,6 +6,8 @@ Reference code: https://github.com/mlfoundations/open_clip/blob/v2.24.0/src/open
 Adapted from https://github.com/openai/CLIP. Originally MIT License, Copyright (c) 2021 OpenAI.
 """
 import copy
+import math
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -22,6 +24,7 @@ except ImportError:
     warnings.warn("Failed to import `huggingface_hub`. `ProLIPHF.from_pretrained` might not work.")
 
 from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer
+from .utils import to_2tuple
 
 
 @dataclass
@@ -371,7 +374,6 @@ def resize_prolip_pos_embed(state_dict, model, interpolation: str = 'bicubic', a
         return
 
     pos_emb_tok, pos_emb_img = model.visual.positional_embedding[:extra_tokens].to(old_pos_embed.device), old_pos_embed
-    pos_dim = pos_emb_img.size()[0]
 
     if len(old_pos_embed) == 197:
         # NOTE patch size 16 with CLS token

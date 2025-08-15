@@ -170,9 +170,9 @@ def load_checkpoint(model, checkpoint_path, strict=True, force_resize=False, n_c
     if do_resize:
         if n_cls:
             # XXX
-            resize_pos_embed(state_dict, model)
-        resize_text_pos_embed(state_dict, model, n_cls=n_cls)
-        resize_tok_embed(state_dict, model)
+            resize_prolip_pos_embed(state_dict, model)
+        resize_prolip_text_pos_embed(state_dict, model, n_cls=n_cls)
+        resize_prolip_tok_embed(state_dict, model)
     else:
         logging.info("Skipping resize....")
 
